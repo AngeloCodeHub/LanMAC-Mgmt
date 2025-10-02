@@ -1,13 +1,82 @@
-// console.log("Hello via Bun!");
+import dotenv from 'dotenv'
+dotenv.config()
 
-// 在你的應用程式入口檔案 (例如 app.js 或 server.js)
-require('dotenv').config(); // 載入 .env 檔案中的環境變數
+import { NodeSSH } from 'node-ssh'
+const ssh = new NodeSSH()
 
-const port = process.env.PORT || 8080; // 從 .env 獲取 PORT，如果沒有則預設為 8080
-const dbUri = process.env.DB_URI;
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+ssh.connect({
+  host: process.env.remote_sship,
+  port: process.env.remote_sshport ? parseInt(process.env.remote_sshport) : 22,
+  username: process.env.remote_sshuser,
+  password: process.env.remote_sshpass,
+})
+  .then(async () => {
+    const [macAddressResult, arpResult] = await Promise.all([
+      ssh.execCommand('show mac address-table'),
+      ssh.execCommand('show ip arp'),
+    ]);
 
-console.log(`應用程式將在埠號 ${port} 上運行`);
-console.log(`資料庫 URI: ${dbUri}`);
-console.log(`Stripe 密鑰: ${stripeSecretKey}`);
-console.log(`Stripe 密鑰: ${stripeSecretKey ? '已載入' : '未載入'}`);
+    if (macAddressResult.code !== 0) {
+      console.error('Error executing "show mac address-table":', macAddressResult.stderr);
+      ssh.dispose();
+      return;
+    }
+    if (arpResult.code !== 0) {
+      console.error('Error executing "show ip arp":', arpResult.stderr);
+      ssh.dispose();
+      return;
+    }
+
+    const macAddressTableOutput = macAddressResult.stdout;
+    const arpListOutput = arpResult.stdout;
+
+    const macPortMap = new Map<string, { vlan: string; port: string }>();
+    macAddressTableOutput.trim().split('\n').forEach(line => {
+      const parts = line.trim().split(/\s+/);
+      const vlan = parts[0];
+      const mac = parts[1];
+      const port = parts[3];
+
+      if (parts.length >= 4 && vlan && /^\d+$/.test(vlan) && mac && port) {
+        const portMatch = port.match(/^eth-0-(\d+)$/);
+        if (portMatch && portMatch[1]) {
+          const portNumber = parseInt(portMatch[1], 10);
+          if (portNumber < 49) {
+            macPortMap.set(mac, { vlan, port });
+          }
+        }
+      }
+    });
+
+    const macToIpMap = new Map<string, string>();
+    arpListOutput.trim().split('\n').forEach(line => {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 4 && parts[0] === 'Internet') {
+        const ip = parts[1];
+        const mac = parts[3];
+        if (ip && mac) {
+          macToIpMap.set(mac, ip);
+        }
+      }
+    });
+
+    const resultObj: Record<string, string[]> = {};
+    macPortMap.forEach(({ vlan, port }, mac) => {
+      if (macToIpMap.has(mac)) {
+        const ip = macToIpMap.get(mac)!;
+        resultObj[port] = [ip, mac, vlan];
+      }
+    });
+
+    console.log(JSON.stringify(resultObj, null, 2));
+
+    ssh.dispose();
+  })
+  .catch((error) => {
+    console.error('SSH Connection Error:', error);
+    ssh.dispose();
+  });
+
+
+
+
