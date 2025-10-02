@@ -64,7 +64,13 @@ ssh.connect({
     macPortMap.forEach(({ vlan, port }, mac) => {
       if (macToIpMap.has(mac)) {
         const ip = macToIpMap.get(mac)!;
-        resultObj[port] = [ip, mac, vlan];
+        const ipParts = ip.split('.');
+        if (ipParts.length === 4 && ipParts[3]) {
+          const lastOctet = parseInt(ipParts[3], 10);
+          if (!isNaN(lastOctet) && lastOctet < 77) {
+            resultObj[port] = [ip, mac, vlan];
+          }
+        }
       }
     });
 
@@ -76,7 +82,3 @@ ssh.connect({
     console.error('SSH Connection Error:', error);
     ssh.dispose();
   });
-
-
-
-
