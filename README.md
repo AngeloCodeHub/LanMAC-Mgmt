@@ -1,4 +1,4 @@
 # lanmac-mgmt
 
-- ssh 連線下指令
-- 
+- node.js ssh 連線程式的使用
+- dotenv的使用

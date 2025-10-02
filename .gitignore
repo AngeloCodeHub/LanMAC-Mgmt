@@ -1,3 +1,6 @@
+# Obsidian vault config
+.obsidian/workspace*.json
+
 # dependencies (bun install)
 node_modules
 
