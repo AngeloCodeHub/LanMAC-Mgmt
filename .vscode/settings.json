@@ -3,6 +3,7 @@
   "cSpell.words": [
   ],
   "files.exclude": {
+    "Backup-env.ps1": true,
     ".obsidian": true
   },
 }
