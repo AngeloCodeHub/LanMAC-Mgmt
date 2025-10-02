@@ -1,0 +1,8 @@
+{
+  "window.title": "${rootName}",
+  "cSpell.words": [
+  ],
+  "files.exclude": {
+    ".obsidian": true
+  },
+}
